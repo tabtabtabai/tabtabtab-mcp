@@ -17,6 +17,7 @@ This is a standalone MCP protocol server that allows AI assistants like Cursor t
   - Contains the MCP server settings
   - Specifies Python interpreter path and server script location
   - Includes environment variables (API keys, server URL)
+  - Make sure `python` exists in the environment and has the `mcp` library installed
 
 ## Setup
 

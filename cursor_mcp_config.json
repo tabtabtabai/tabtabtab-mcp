@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "google-sheets": {
-      "command": "/Users/gyanendramishra/Library/Caches/pypoetry/virtualenvs/tabtabtab-backend-ViwnTlUS-py3.11/bin/python",
+      "command": "python",
       "args": [
         "/Users/gyanendramishra/work/tabtabtab-sheets/backend/tabtabtab_mcp/server.py"
       ],
