@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  tabtabtab-mcp:
+    build: .
+    container_name: tabtabtab-sheets-mcp
+    environment:
+      - TABTABTAB_API_KEY=${TABTABTAB_API_KEY}
+      - TABTABTAB_SERVER_URL=${TABTABTAB_SERVER_URL:-https://sheets.tabtabtab.ai}
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+

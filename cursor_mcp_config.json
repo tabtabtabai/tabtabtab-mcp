@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "google-sheets": {
+      "command": "/Users/gyanendramishra/Library/Caches/pypoetry/virtualenvs/tabtabtab-backend-ViwnTlUS-py3.11/bin/python",
+      "args": [
+        "/Users/gyanendramishra/work/tabtabtab-sheets/backend/tabtabtab_mcp/server.py"
+      ],
+      "env": {
+        "TABTABTAB_API_KEY": "",
+        "TABTABTAB_SERVER_URL": "http://localhost:8000"
+      }
+    }
+  }
+}
+
