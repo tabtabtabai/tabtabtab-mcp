@@ -12,7 +12,7 @@ COPY __init__.py .
 
 # Set environment variables
 ENV TABTABTAB_API_KEY=""
-ENV TABTABTAB_SERVER_URL="https://api.tabtabtab.ai"
+ENV TABTABTAB_SERVER_URL="https://sheets.tabtabtab.ai"
 ENV PYTHONUNBUFFERED=1
 
 # Run the MCP server
