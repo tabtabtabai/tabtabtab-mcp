@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""MCP Protocol Server for Google Sheets
+"""MCP Protocol Server for Google Sheets (HTTP/SSE Mode)
 
-This is a proper MCP protocol server that can be used with Cursor, Claude Desktop,
-or any other MCP client. It wraps our HTTP API and implements the MCP stdio protocol.
+This is an MCP protocol server that runs over HTTP using Server-Sent Events (SSE).
+It can be deployed to Google Cloud Run or any HTTP-based hosting platform.
 
 Usage:
-    python mcp_protocol_server.py
+    python server.py
+
+Environment Variables:
+    - TABTABTAB_API_KEY: Your TabTabTab API key (required)
+    - TABTABTAB_SERVER_URL: TabTabTab backend URL (default: https://sheets.tabtabtab.ai)
+    - PORT: Port to listen on (default: 8080, Cloud Run sets this automatically)
 
 Configuration for Cursor (add to MCP settings):
     {
         "mcpServers": {
             "google-sheets": {
-                "command": "python",
-                "args": ["/path/to/backend/mcp_server/mcp_protocol_server.py"],
-                "env": {
-                    "TABTABTAB_API_KEY": "your_api_key_here",
-                    "TABTABTAB_SERVER_URL": "http://localhost:8000"
-                }
+                "url": "https://your-cloud-run-url.run.app/sse"
             }
         }
     }
@@ -29,31 +29,35 @@ import sys
 import logging
 from typing import Any, Optional, Sequence
 import httpx
+from starlette.applications import Starlette
+from starlette.routing import Route
+from starlette.responses import Response
+import uvicorn
 
-# Set up logging to file so we can see errors
+# Set up logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("/tmp/mcp_server.log"),
         logging.StreamHandler(sys.stderr),
     ],
 )
 logger = logging.getLogger(__name__)
 
-logger.info("Starting MCP server...")
+logger.info("Starting MCP server in HTTP/SSE mode...")
 
 # Try to import mcp, provide helpful error if not installed
 try:
     from mcp.server import Server
-    from mcp.server.stdio import stdio_server
+    from mcp.server.sse import SseServerTransport
     from mcp.types import Tool, TextContent
+    from sse_starlette import EventSourceResponse
 
     logger.info("MCP imports successful")
 except ImportError as e:
-    logger.error(f"Failed to import MCP: {e}")
+    logger.error(f"Failed to import required packages: {e}")
     print(
-        "Error: MCP package not installed. Install it with: pip install mcp",
+        "Error: Required packages not installed. Install with: pip install mcp sse-starlette starlette uvicorn",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -268,37 +272,93 @@ async def handle_call_tool(name: str, arguments: dict) -> Sequence[TextContent]:
     return [TextContent(type="text", text=result)]
 
 
-async def main():
-    """Main entry point for the MCP server"""
-    logger.info("Entering main()")
-
+async def handle_sse(request):
+    """Handle SSE connection for MCP protocol"""
+    logger.info("SSE connection requested")
+    
     # Verify configuration
     if not TABTABTAB_API_KEY:
         logger.warning("TABTABTAB_API_KEY not set")
-        print(
-            "Warning: TABTABTAB_API_KEY environment variable not set. "
-            "The server will start but tool calls will fail. "
-            "Set it in your MCP configuration.",
-            file=sys.stderr,
+        return Response(
+            "Error: TABTABTAB_API_KEY environment variable not set",
+            status_code=500
         )
-
+    
     try:
-        logger.info("Starting stdio server...")
-        # Run the server using stdio transport
-        async with stdio_server() as (read_stream, write_stream):
-            logger.info("stdio server started, running MCP server...")
-            await server.run(
-                read_stream, write_stream, server.create_initialization_options()
-            )
+        # Create SSE transport
+        async with SseServerTransport("/messages") as transport:
+            logger.info("SSE transport created")
+            
+            # Connect the transport to the request/response
+            async def send_events():
+                await server.run(
+                    transport.read_stream,
+                    transport.write_stream,
+                    server.create_initialization_options()
+                )
+            
+            # Start the server task
+            server_task = asyncio.create_task(send_events())
+            
+            # Return SSE response
+            async def event_generator():
+                try:
+                    async for message in transport.iter_messages():
+                        yield message
+                except Exception as e:
+                    logger.error(f"Error in event generator: {e}", exc_info=True)
+                finally:
+                    server_task.cancel()
+            
+            return EventSourceResponse(event_generator())
+            
     except Exception as e:
-        logger.error(f"Error in main: {e}", exc_info=True)
-        raise
+        logger.error(f"Error in SSE handler: {e}", exc_info=True)
+        return Response(f"Error: {str(e)}", status_code=500)
+
+
+async def handle_health(request):
+    """Health check endpoint for Cloud Run"""
+    return Response("OK", status_code=200)
+
+
+# Create Starlette app
+app = Starlette(
+    routes=[
+        Route("/sse", handle_sse),
+        Route("/health", handle_health),
+        Route("/", handle_health),  # Root path for basic health check
+    ]
+)
+
+
+def main():
+    """Main entry point for the MCP server"""
+    logger.info("Starting HTTP server...")
+    
+    # Get port from environment (Cloud Run sets this)
+    port = int(os.getenv("PORT", "8080"))
+    
+    # Verify configuration
+    if not TABTABTAB_API_KEY:
+        logger.warning("TABTABTAB_API_KEY not set - server will start but tool calls will fail")
+    
+    logger.info(f"TABTABTAB_API_KEY set: {bool(TABTABTAB_API_KEY)}")
+    logger.info(f"TABTABTAB_SERVER_URL: {TABTABTAB_SERVER_URL}")
+    logger.info(f"Starting server on port {port}")
+    
+    # Run the server
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        log_level="info"
+    )
 
 
 if __name__ == "__main__":
     try:
-        logger.info("__main__ starting")
-        asyncio.run(main())
+        main()
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
