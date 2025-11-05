@@ -3,7 +3,7 @@
     "google-sheets": {
       "command": "python",
       "args": [
-        "/Users/gyanendramishra/work/tabtabtab-sheets/backend/tabtabtab_mcp/server.py"
+        "/Users/gyanendramishra/work/tabtabtab-sheets/backend/tabtabtab-mcp/server.py"
       ],
       "env": {
         "TABTABTAB_API_KEY": "",
